@@ -21,7 +21,7 @@ from base import Layout
 from .. import utils
 
 
-class _WinStack(object):
+class _VWWinStack(object):
     split = False
     _current = 0
 
@@ -42,7 +42,8 @@ class _WinStack(object):
             return None
         return self.lst[self.current]
 
-    def __init__(self):
+    def __init__(self, width):
+        self.width = width
         self.lst = []
 
     def toggleSplit(self):
@@ -109,7 +110,7 @@ class _WinStack(object):
         return client in self.lst
 
     def __repr__(self):
-        return "_WinStack(%s, %s)" % (
+        return "_VWWinStack(%s, %s)" % (
             self.current, str([i.name for i in self])
         )
 
@@ -121,8 +122,10 @@ class _WinStack(object):
         )
 
 
-class Stack(Layout):
+class VWStack(Layout):
     """
+        Variable Width Stack
+
         The stack layout divides the screen horizontally into a set of stacks.
         Commands allow you to switch between stacks, to next and previous
         windows within a stack, and to split a stack to show all windows in the
@@ -138,12 +141,15 @@ class Stack(Layout):
         ("num_stacks", 2, "Number of stacks."),
         ("fair", False, "Add new windows to the stacks in a round robin way."),
         ("margin", 0, "Margin of the layout"),
+        ("stack_widths", [50, 50], "Widths of the stacks.")
     ]
 
     def __init__(self, **config):
         Layout.__init__(self, **config)
-        self.add_defaults(Stack.defaults)
-        self.stacks = [_WinStack() for i in range(self.num_stacks)]
+        self.add_defaults(VWStack.defaults)
+        total = float(sum(self.stack_widths))
+        widths = [float(x) / total for x in self.stack_widths]
+        self.stacks = [_VWWinStack(width) for width in widths]
         for stack in self.stacks:
             if self.autosplit:
                 stack.split = True
@@ -169,7 +175,7 @@ class Stack(Layout):
     def clone(self, group):
         c = Layout.clone(self, group)
         # These are mutable
-        c.stacks = [_WinStack() for i in self.stacks]
+        c.stacks = [_VWWinStack(s.width) for s in self.stacks]
         for stack in c.stacks:
             if self.autosplit:
                 stack.split = True
@@ -284,9 +290,11 @@ class Stack(Layout):
                 return n.cw
 
     def configure(self, client, screen):
+        offset = 0
         for i, s in enumerate(self.stacks):
             if client in s:
                 break
+            offset += s.width
         else:
             client.hide()
             return
@@ -296,8 +304,8 @@ class Stack(Layout):
         else:
             px = self.group.qtile.colorPixel(self.border_normal)
 
-        columnWidth = int(screen.width / float(len(self.stacks)))
-        xoffset = screen.x + i * columnWidth
+        columnWidth = int(screen.width * s.width)
+        xoffset = screen.x + int(screen.width * offset)
         winWidth = columnWidth - 2 * self.border_width
 
         if s.split:
@@ -383,10 +391,11 @@ class Stack(Layout):
         """
             Add another stack to the layout.
         """
-        newstack = _WinStack()
+        newstack = _VWWinStack()
         if self.autosplit:
             newstack.split = True
-        self.stacks.append(newstack)
+        width = 1.0 / float(len(self.stacks) + 1)
+        self.stacks.append(_VWWinStack(width))
         self.group.layoutAll()
 
     def cmd_rotate(self):

@@ -3,6 +3,7 @@
 # flake8: noqa
 
 from stack import Stack
+from vwstack import VWStack
 from max import Max
 from xmonad import MonadTall
 from tile import Tile
